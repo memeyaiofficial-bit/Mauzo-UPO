@@ -193,7 +193,13 @@ app.add_middleware(
 if not settings.DEBUG:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["pos.kaziflex.com", "api.kaziflex.com","flex-cosmetics-pos.onrender.com", "localhost"],
+        allowed_hosts=[
+            "pos.kaziflex.com",
+            "api.kaziflex.com",
+            "flex-cosmetics-pos.onrender.com",
+            "mauzo-upo.onrender.com",
+            "localhost",
+        ],
     )
 
 
