@@ -840,7 +840,7 @@ function proceedToPayment() {
   if (!email.includes('@')) { showRegError('Enter a valid email'); return; }
   if (pass.length < 8) { showRegError('Password must be at least 8 characters'); return; }
   if (!phone) { showRegError('Enter M-Pesa phone number'); return; }
-  pendingReg = { full_name: name, shop_name: pharm, email, password: pass, phone_number: phone };
+  pendingReg = { full_name: name, business_name: pharm, email, password: pass, phone_number: phone };
   document.getElementById('pay-name-display').textContent = `${name} — ${pharm}`;
   document.getElementById('pay-phone-display').textContent = phone;
   document.getElementById('reg-step1').style.display = 'none';
