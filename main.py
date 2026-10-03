@@ -198,7 +198,7 @@ if not settings.DEBUG:
             "api.kaziflex.com",
             "flex-cosmetics-pos.onrender.com",
             "mauzo-upo.onrender.com",
-            "https://www.mauzo.memeyai.com/"
+            "www.mauzo.memeyai.com",
             "localhost",
         ],
     )
