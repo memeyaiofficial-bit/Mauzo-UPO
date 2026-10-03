@@ -115,10 +115,10 @@ def stk_push(
         "BusinessShortCode": settings.MPESA_SHORTCODE,
         "Password": password,
         "Timestamp": timestamp,
-        "TransactionType": "CustomerPayBillOnline",  # Use "CustomerBuyGoodsOnline" for Till
+        "TransactionType": "CustomerBuyGoodsOnline",  # Use "CustomerBuyGoodsOnline" for Till
         "Amount": int(amount),                        # Must be integer, no decimals
         "PartyA": phone_number,                       # Customer phone
-        "PartyB": settings.MPESA_SHORTCODE,           # Your shortcode
+        "PartyB": 5628512,           # Your shortcode
         "PhoneNumber": phone_number,
         "CallBackURL": settings.MPESA_CALLBACK_URL,
         "AccountReference": account_reference[:12],   # Max 12 chars
