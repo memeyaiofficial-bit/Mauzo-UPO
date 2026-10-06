@@ -12,13 +12,40 @@ def upgrade():
     conn=op.get_bind()
     # Rename the old pharmacist role to manager. PostgreSQL uses a native enum;
     # SQLite stores the value as text.
-    if conn.dialect.name == 'postgresql' and any(
-        enum['name'] == 'userrole'
-        for enum in sa.inspect(conn).get_enums()
-    ):
-        conn.execute(sa.text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'MANAGER'"))
     if _table(conn,'users') and 'role' in _cols(conn,'users'):
-        conn.execute(sa.text("UPDATE users SET role='MANAGER' WHERE role IN ('PHARMACIST','pharmacist')"))
+        if conn.dialect.name == 'postgresql':
+            role_column = next(
+                column
+                for column in sa.inspect(conn).get_columns('users')
+                if column['name'] == 'role'
+            )
+            role_type = role_column['type']
+            enums = sa.inspect(conn).get_enums()
+            role_enum = next(
+                (
+                    enum for enum in enums
+                    if enum['name'] == getattr(role_type, 'name', None)
+                ),
+                None,
+            )
+            if role_enum:
+                old_labels = {'PHARMACIST', 'pharmacist'} & set(role_enum['labels'])
+                if old_labels and 'MANAGER' not in role_enum['labels']:
+                    quoted_type = conn.dialect.identifier_preparer.quote(role_enum['name'])
+                    with op.get_context().autocommit_block():
+                        conn.execute(sa.text(
+                            f"ALTER TYPE {quoted_type} ADD VALUE 'MANAGER'"
+                        ))
+                if old_labels:
+                    conn.execute(sa.text(
+                        "UPDATE users SET role='MANAGER' "
+                        "WHERE role::text IN ('PHARMACIST', 'pharmacist')"
+                    ))
+        else:
+            conn.execute(sa.text(
+                "UPDATE users SET role='MANAGER' "
+                "WHERE role IN ('PHARMACIST','pharmacist')"
+            ))
     if _table(conn,'medicines') and not _table(conn,'products'): op.rename_table('medicines','products')
     if _table(conn,'medicine_alerts') and not _table(conn,'product_alerts'): op.rename_table('medicine_alerts','product_alerts')
     for table in ('inventory','sale_items','po_items','product_alerts'):
