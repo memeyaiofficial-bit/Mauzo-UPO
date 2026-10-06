@@ -899,7 +899,7 @@ async function processPayment() {
     // Poll real payment status every 4s, matching the POS sales-payment flow
     pollTimer = setInterval(async () => {
       try {
-        const sr = await fetch(API + `/payments/mpesa/${d.checkout_request_id}/status`);
+        const sr = await fetch(API + `/payments/mpesa/registration/${d.checkout_request_id}/status`);
         const sd = await sr.json();
         if (sd.status === 'SUCCESS') {
           clearInterval(pollTimer); clearInterval(countdownTimer);

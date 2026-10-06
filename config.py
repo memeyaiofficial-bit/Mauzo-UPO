@@ -39,12 +39,8 @@ class Settings(BaseSettings):
     # ── ExternalCatalog (CATALOG-aligned drug data) ───────────────────────────────────
 
     # ── Bootstrap admin ───────────────────────────────────────────────────
-    # Set AUTO_CREATE_FIRST_ADMIN=False if you want businesses to sign up
-    # and pay for their own first admin account via the landing page
-    # (POST /auth/register/initiate) instead of it being created from
-    # .env on every startup. The two setup paths are mutually exclusive —
-    # the auto-created admin would otherwise always exist first, blocking
-    # the paid self-registration flow's "fresh install" check.
+    # The showcase admin is independent of paid signup; each successful signup
+    # creates an admin in a new, isolated business.
     AUTO_CREATE_FIRST_ADMIN: bool = True
     FIRST_ADMIN_EMAIL: str = "admin@cosmetics.local"
     FIRST_ADMIN_PASSWORD: Optional[SecretStr] = None

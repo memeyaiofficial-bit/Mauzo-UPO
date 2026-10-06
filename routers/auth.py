@@ -66,6 +66,8 @@ def login(payload: LoginIn, request: Request, db: Session = Depends(get_db)):
     )
 
     user: User = db.query(User).filter(User.email == payload.email.lower()).first()
+    if user:
+        db.info["business_id"] = user.business_id
     if not user:
         raise invalid_credentials
 
@@ -187,6 +189,7 @@ def forgot_password(payload: ForgotPasswordIn, request: Request, db: Session = D
     user = db.query(User).filter(User.email == payload.email.lower()).first()
     if not user or not user.is_active:
         return generic_response  # Don't reveal whether the account exists
+    db.info["business_id"] = user.business_id
 
     # Invalidate any previous unused codes for this user
     db.query(PasswordResetCode).filter(
@@ -237,6 +240,7 @@ def reset_password(payload: ResetPasswordIn, request: Request, db: Session = Dep
     if not user:
         raise invalid
 
+    db.info["business_id"] = user.business_id
     reset_row = (
         db.query(PasswordResetCode)
         .filter(
@@ -279,30 +283,42 @@ def reset_password(payload: ResetPasswordIn, request: Request, db: Session = Dep
 
 
 @router.post("/register/initiate", response_model=RegisterInitiateOut,
-             summary="Start paid self-registration for a new cosmetics install (bootstrap only)")
+             summary="Start paid registration for a new isolated business")
 @limiter.limit("3/minute")
 def register_initiate(payload: RegisterInitiateIn, request: Request, db: Session = Depends(get_db)):
     """
     Public endpoint used by the landing page's signup flow.
 
-    This system is one deployment per cosmetics — this endpoint only works
-    on a FRESH install that has no users yet. It sends a real M-Pesa STK
-    Push for the registration fee; the admin account is only created once
-    that payment is confirmed by the M-Pesa callback (see
+    Every paid registration creates a new isolated business after payment
+    is confirmed by the M-Pesa callback (see
     routers/payments.py::mpesa_callback). Nothing is created here yet —
     this just starts the payment and stashes the pending account details
     on the MpesaTransaction row until payment succeeds.
 
-    Poll GET /payments/mpesa/{checkout_request_id}/status to know when
-    it's done, matching the existing sales-payment flow.
+    Poll the public registration status endpoint to know when it's done.
     """
-    if db.query(User).first() is not None:
+    email = payload.email.strip().lower()
+    if db.query(User).filter(User.email == email).first() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="This cosmetics is already set up. Please sign in instead.",
+            detail="An account with this email already exists. Please sign in instead.",
         )
 
-    email = payload.email.strip().lower()
+    pending_signup = (
+        db.query(MpesaTransaction)
+        .filter(
+            MpesaTransaction.pending_email == email,
+            MpesaTransaction.purpose == "registration",
+            MpesaTransaction.status == MpesaStatus.PENDING,
+        )
+        .first()
+    )
+    if pending_signup:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A signup payment is already pending for this email.",
+        )
+
     if "@" not in email:
         raise HTTPException(status_code=400, detail="Enter a valid email address")
 

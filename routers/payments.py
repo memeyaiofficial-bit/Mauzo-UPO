@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models.orm import AuditLog, MpesaTransaction, MpesaStatus, Sale, SaleStatus, User, UserRole
+from models.orm import AuditLog, Business, MpesaTransaction, MpesaStatus, Sale, SaleStatus, User, UserRole
 from schemas.schemas import MpesaSTKPushIn, MpesaSTKPushOut, MpesaStatusOut
 from services.mpesa_service import stk_push, query_stk_status, parse_callback
 from utils.errors import safe_error
@@ -171,8 +171,9 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
                 txn.status = MpesaStatus.FAILED
                 txn.result_desc = f"Amount mismatch: expected {txn.amount}, got {parsed['amount']}"
 
-        db.add(AuditLog(
+        callback_audit = AuditLog(
             user_id=None,  # System-generated (Safaricom callback)
+            business_id=txn.business_id,
             action="MPESA_CALLBACK",
             entity="MpesaTransaction",
             entity_id=txn.id,
@@ -181,7 +182,8 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
                 f"Status={txn.status} "
                 f"ResultCode={parsed['result_code']}"
             ),
-        ))
+        )
+        db.add(callback_audit)
 
         # ── Self-registration: create the admin account now that payment succeeded ──
         if txn.purpose == "registration" and txn.status == MpesaStatus.SUCCESS and not txn.registration_completed:
@@ -193,17 +195,12 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
                     "Registration payment succeeded but user %s already exists — skipping account creation",
                     txn.pending_email,
                 )
-            elif db.query(User).first() is not None:
-                # Another registration completed first — this cosmetics install
-                # is already set up. Log it; the paid customer should be
-                # refunded/contacted manually since payment did succeed.
-                logger.error(
-                    "Registration payment succeeded for %s but an admin already exists "
-                    "on this install — MANUAL FOLLOW-UP NEEDED (refund/contact customer).",
-                    txn.pending_email,
-                )
             else:
+                business = Business(name=txn.pending_business_name)
+                db.add(business)
+                db.flush()
                 new_admin = User(
+                    business_id=business.id,
                     full_name=txn.pending_full_name,
                     email=txn.pending_email,
                     hashed_password=txn.pending_password_hash,
@@ -213,9 +210,12 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
                     business_name=txn.pending_business_name,
                 )
                 db.add(new_admin)
+                txn.business_id = business.id
+                callback_audit.business_id = business.id
                 txn.registration_completed = True
                 db.add(AuditLog(
                     user_id=None,
+                    business_id=business.id,
                     action="REGISTRATION_COMPLETED",
                     detail=f"Admin account created for {txn.pending_email} after confirmed payment (receipt={parsed['mpesa_receipt']})",
                 ))
@@ -238,6 +238,33 @@ async def mpesa_callback(request: Request, db: Session = Depends(get_db)):
 
 
 # ── Status Poll ───────────────────────────────────────────────────────────────
+
+@router.get("/registration/{checkout_request_id}/status", response_model=MpesaStatusOut,
+            summary="Check paid-signup payment status")
+def get_registration_payment_status(
+    checkout_request_id: str,
+    db: Session = Depends(get_db),
+):
+    """Expose only the payment result for a signup before the user can log in."""
+    txn = (
+        db.query(MpesaTransaction)
+        .filter(
+            MpesaTransaction.checkout_request_id == checkout_request_id,
+            MpesaTransaction.purpose == "registration",
+        )
+        .first()
+    )
+    if not txn:
+        raise HTTPException(status_code=404, detail="Registration payment not found")
+
+    return MpesaStatusOut(
+        checkout_request_id=txn.checkout_request_id,
+        status=txn.status,
+        mpesa_receipt=txn.mpesa_receipt,
+        amount=txn.amount,
+        result_desc=txn.result_desc,
+    )
+
 
 @router.get("/{checkout_request_id}/status", response_model=MpesaStatusOut,
             summary="Check payment status")

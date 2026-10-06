@@ -152,6 +152,12 @@ def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or account disabled",
         )
+    if user.business_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is not assigned to a business",
+        )
+    db.info["business_id"] = user.business_id
     return user
 
 

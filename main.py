@@ -27,7 +27,7 @@ from routers.payments import router as payments_router
 
 from config import get_settings
 from database import Base, engine, SessionLocal, DATABASE_URL
-from models.orm import User, UserRole
+from models.orm import Business, User, UserRole
 from routers.auth import router as auth_router
 from routers.users import router as users_router
 from routers.products import router as products_router
@@ -59,14 +59,27 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     logger.info("Database ready.")
 
-    # 2. Seed first admin (unless this install uses paid self-registration
-    #    via the landing page instead — see config.py AUTO_CREATE_FIRST_ADMIN)
+    # 2. Seed the showcase admin; paid self-registration creates other businesses.
     db = SessionLocal()
     try:
+        showcase_business = (
+            db.query(Business)
+            .filter(Business.name == "Mauzo Showcase")
+            .order_by(Business.id)
+            .first()
+        )
+        if not showcase_business:
+            showcase_business = Business(name="Mauzo Showcase")
+            db.add(showcase_business)
+            db.commit()
+            db.refresh(showcase_business)
+        db.info["business_id"] = showcase_business.id
+
         if not settings.AUTO_CREATE_FIRST_ADMIN:
             logger.info(
                 "AUTO_CREATE_FIRST_ADMIN is disabled — skipping. "
-                "First admin will be created via paid self-registration "
+                "The showcase admin will not be created automatically. "
+                "Paid self-registration creates separate business accounts "
                 "(POST /auth/register/initiate) once someone signs up and pays."
             )
         else:
@@ -75,12 +88,13 @@ async def lifespan(app: FastAPI):
                 if not settings.FIRST_ADMIN_PASSWORD:
                     logger.warning(
                         "AUTO_CREATE_FIRST_ADMIN is enabled but FIRST_ADMIN_PASSWORD is not "
-                        "set in .env — skipping admin creation. Set FIRST_ADMIN_PASSWORD, or "
-                        "set AUTO_CREATE_FIRST_ADMIN=False to use paid self-registration instead."
+                        "set in .env — skipping showcase admin creation. Set FIRST_ADMIN_PASSWORD "
+                        "to create it; paid self-registration is still available."
                     )
                 else:
                     logger.info("No admin found – creating default admin account.")
                     admin = User(
+                        business_id=showcase_business.id,
                         full_name=settings.FIRST_ADMIN_NAME,
                         email=settings.FIRST_ADMIN_EMAIL.lower(),
                         hashed_password=hash_password(

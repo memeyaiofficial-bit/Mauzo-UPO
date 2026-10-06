@@ -36,3 +36,9 @@ uvicorn main:app --reload
 ```
 
 Set `SECRET_KEY` and database settings in `.env`.
+
+## Business accounts
+The showcase administrator belongs to the `Mauzo Showcase` business. Each
+successful paid signup creates a separate business and its own administrator.
+Shop data is scoped to the authenticated user's business. Existing records are
+assigned to the showcase business by the business-tenants Alembic migration.

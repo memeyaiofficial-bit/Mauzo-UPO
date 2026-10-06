@@ -20,6 +20,10 @@ services:
       - key: DEBUG
         value: "false"
 
+      # Keep the unpaid showcase administrator; paid signup creates separate shops.
+      - key: AUTO_CREATE_FIRST_ADMIN
+        value: "true"
+
       - key: FIRST_ADMIN_EMAIL
         value: admin@yourcosmetics.com
 
@@ -51,7 +55,7 @@ services:
 
       # Browser origins allowed to call the API in production.
       - key: ALLOWED_ORIGINS
-        value: '["https://www.mezadawa.memeyai.com","https://mezadawa.memeyai.com","http://localhost:5500","http://127.0.0.1:5500"]'
+        value: '["https://www.mauzo.memeyai.com","https://mauzo.memeyai.com","http://localhost:5500","http://127.0.0.1:5500"]'
 
 
       - key: APP_NAME

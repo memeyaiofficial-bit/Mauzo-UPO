@@ -5,8 +5,8 @@ from enum import Enum as PyEnum
 from typing import Optional
 import enum
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Index, Integer, Numeric, String, Text, event, func
+from sqlalchemy.orm import Mapped, Session, declared_attr, mapped_column, relationship, with_loader_criteria
 
 from database import Base
 
@@ -44,7 +44,54 @@ class AlertType(str, PyEnum):
     OUT_OF_STOCK = "out_of_stock"
 
 
-class User(Base):
+class Business(Base):
+    __tablename__ = "businesses"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+
+class TenantOwned:
+    @declared_attr
+    def business_id(cls):
+        return Column(Integer, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True)
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _scope_tenant_queries(execute_state):
+    business_id = execute_state.session.info.get("business_id")
+    if business_id is not None and execute_state.is_select:
+        execute_state.statement = execute_state.statement.options(
+            with_loader_criteria(
+                TenantOwned,
+                lambda model: model.business_id == business_id,
+                include_aliases=True,
+            )
+        )
+
+
+@event.listens_for(Session, "before_flush")
+def _assign_tenant_to_new_rows(session, _flush_context, _instances):
+    business_id = session.info.get("business_id")
+    for instance in session.new:
+        if isinstance(instance, TenantOwned):
+            row_business_id = instance.business_id
+            if row_business_id is None and instance.__tablename__ in {
+                "audit_logs",
+                "mpesa_transactions",
+            }:
+                continue
+            if row_business_id is None and business_id is not None:
+                instance.business_id = business_id
+            elif row_business_id is None:
+                raise ValueError(
+                    f"{type(instance).__name__} must be assigned to a business"
+                )
+            elif business_id is not None and row_business_id != business_id:
+                raise ValueError("Cannot create a record for another business")
+
+
+class User(TenantOwned, Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String(120), nullable=False)
@@ -61,8 +108,9 @@ class User(Base):
     audit_logs = relationship("AuditLog", back_populates="user")
 
 
-class AuditLog(Base):
+class AuditLog(TenantOwned, Base):
     __tablename__ = "audit_logs"
+    business_id = Column(Integer, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=True, index=True)
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     action = Column(String(100), nullable=False)
@@ -86,10 +134,10 @@ class PasswordResetCode(Base):
     user = relationship("User")
 
 
-class Supplier(Base):
+class Supplier(TenantOwned, Base):
     __tablename__ = "suppliers"
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(200), nullable=False, unique=True)
+    name = Column(String(200), nullable=False)
     contact_name = Column(String(120), nullable=True)
     phone = Column(String(20), nullable=True)
     email = Column(String(255), nullable=True)
@@ -98,16 +146,19 @@ class Supplier(Base):
     created_at = Column(DateTime, server_default=func.now())
     purchase_orders = relationship("PurchaseOrder", back_populates="supplier")
     inventory_items = relationship("Inventory", back_populates="supplier")
+    __table_args__ = (
+        Index("uq_suppliers_business_name", "business_id", "name", unique=True),
+    )
 
 
-class Product(Base):
+class Product(TenantOwned, Base):
     """Cosmetics product catalogue. Only cosmetics-relevant fields remain."""
     __tablename__ = "products"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(300), nullable=False, index=True)
     brand_name = Column(String(300), nullable=True)
     variant = Column(String(200), nullable=True)  # shade, size, scent, etc.
-    barcode = Column(String(100), unique=True, nullable=True, index=True)
+    barcode = Column(String(100), nullable=True)
     manufacturer = Column(String(200), nullable=True)
     description = Column(Text, nullable=True)
     category = Column(String(80), nullable=True, index=True)
@@ -121,10 +172,13 @@ class Product(Base):
     sale_items = relationship("SaleItem", back_populates="product")
     po_items = relationship("POItem", back_populates="product")
     alerts = relationship("ProductAlert", back_populates="product", cascade="all, delete-orphan")
-    __table_args__ = (Index("ix_products_name_brand", "name", "brand_name"),)
+    __table_args__ = (
+        Index("ix_products_name_brand", "name", "brand_name"),
+        Index("uq_products_business_barcode", "business_id", "barcode", unique=True),
+    )
 
 
-class Inventory(Base):
+class Inventory(TenantOwned, Base):
     """Stock records for products. Multiple receipts may exist for one product."""
     __tablename__ = "inventory"
     id = Column(Integer, primary_key=True, index=True)
@@ -142,23 +196,26 @@ class Inventory(Base):
     __table_args__ = (Index("ix_inventory_expires", "expires_at", "product_id"),)
 
 
-class Customer(Base):
+class Customer(TenantOwned, Base):
     __tablename__ = "customers"
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String(200), nullable=False)
-    phone = Column(String(20), nullable=True, unique=True)
+    phone = Column(String(20), nullable=True)
     email = Column(String(255), nullable=True)
     notes = Column(Text, nullable=True)
     loyalty_points = Column(Integer, default=0, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, server_default=func.now())
     sales = relationship("Sale", back_populates="customer")
+    __table_args__ = (
+        Index("uq_customers_business_phone", "business_id", "phone", unique=True),
+    )
 
 
-class Sale(Base):
+class Sale(TenantOwned, Base):
     __tablename__ = "sales"
     id = Column(Integer, primary_key=True, index=True)
-    receipt_number = Column(String(50), unique=True, nullable=False, index=True)
+    receipt_number = Column(String(50), nullable=False)
     cashier_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     customer_id = Column(Integer, ForeignKey("customers.id", ondelete="SET NULL"), nullable=True)
     subtotal = Column(Numeric(10, 2), nullable=False, default=Decimal("0.00"))
@@ -179,10 +236,13 @@ class Sale(Base):
     customer = relationship("Customer", back_populates="sales")
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
     mpesa_transactions = relationship("MpesaTransaction", back_populates="sale")
-    __table_args__ = (Index("ix_sales_sold_at_status", "sold_at", "status"),)
+    __table_args__ = (
+        Index("ix_sales_sold_at_status", "sold_at", "status"),
+        Index("uq_sales_business_receipt_number", "business_id", "receipt_number", unique=True),
+    )
 
 
-class SaleItem(Base):
+class SaleItem(TenantOwned, Base):
     __tablename__ = "sale_items"
     id = Column(Integer, primary_key=True, index=True)
     sale_id = Column(Integer, ForeignKey("sales.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -196,10 +256,10 @@ class SaleItem(Base):
     product = relationship("Product", back_populates="sale_items")
 
 
-class PurchaseOrder(Base):
+class PurchaseOrder(TenantOwned, Base):
     __tablename__ = "purchase_orders"
     id = Column(Integer, primary_key=True, index=True)
-    po_number = Column(String(50), unique=True, nullable=False, index=True)
+    po_number = Column(String(50), nullable=False)
     supplier_id = Column(Integer, ForeignKey("suppliers.id", ondelete="RESTRICT"), nullable=False)
     raised_by_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     status = Column(Enum(POStatus), nullable=False, default=POStatus.DRAFT)
@@ -211,9 +271,12 @@ class PurchaseOrder(Base):
     supplier = relationship("Supplier", back_populates="purchase_orders")
     raised_by = relationship("User", foreign_keys="[PurchaseOrder.raised_by_id]")
     items = relationship("POItem", back_populates="purchase_order", cascade="all, delete-orphan")
+    __table_args__ = (
+        Index("uq_purchase_orders_business_po_number", "business_id", "po_number", unique=True),
+    )
 
 
-class POItem(Base):
+class POItem(TenantOwned, Base):
     __tablename__ = "po_items"
     id = Column(Integer, primary_key=True, index=True)
     purchase_order_id = Column(Integer, ForeignKey("purchase_orders.id", ondelete="CASCADE"), nullable=False)
@@ -226,7 +289,7 @@ class POItem(Base):
     product = relationship("Product", back_populates="po_items")
 
 
-class ProductAlert(Base):
+class ProductAlert(TenantOwned, Base):
     __tablename__ = "product_alerts"
     id = Column(Integer, primary_key=True, index=True)
     product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -247,8 +310,9 @@ class MpesaStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
-class MpesaTransaction(Base):
+class MpesaTransaction(TenantOwned, Base):
     __tablename__ = "mpesa_transactions"
+    business_id: Mapped[Optional[int]] = mapped_column(ForeignKey("businesses.id", ondelete="CASCADE"), nullable=True, index=True)
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     sale_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("sales.id"), nullable=True, index=True)
     checkout_request_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
