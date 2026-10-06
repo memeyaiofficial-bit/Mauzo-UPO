@@ -173,18 +173,9 @@ app.include_router(payments_router)
 
 # ── Security middleware ────────────────────────────────────────────────────────
 
-# CORS – tighten allowed_origins for production
-ALLOWED_ORIGINS = [
-    "http://localhost:3000",           # Local dev frontend
-    "http://localhost:5173",         # Vite dev server
-    "http://localhost:58506",
-     "http://localhost:63342",
-    "https://pos.kaziflex.com",        # Production frontend
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS if not settings.DEBUG else ["*"],
+    allow_origins=settings.ALLOWED_ORIGINS if not settings.DEBUG else ["*"],
     allow_credentials=True,            # Now safe because origins are explicit
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
@@ -198,6 +189,7 @@ if not settings.DEBUG:
             "api.kaziflex.com",
             "flex-cosmetics-pos.onrender.com",
             "mauzo-upo.onrender.com",
+            "meza-dawa.onrender.com",
             "www.mauzo.memeyai.com",
             "localhost",
         ],

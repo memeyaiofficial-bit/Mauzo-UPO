@@ -49,10 +49,9 @@ services:
       - key: MPESA_ENV
         value: sandbox
 
-      # FIX 3: ALLOWED_ORIGINS must include your actual frontend URL
-      # For now allow all during testing, tighten before production
+      # Browser origins allowed to call the API in production.
       - key: ALLOWED_ORIGINS
-        value: '["https://cosmetics-pos.onrender.com","http://localhost:5500","http://127.0.0.1:5500"]'
+        value: '["https://www.mezadawa.memeyai.com","https://mezadawa.memeyai.com","http://localhost:5500","http://127.0.0.1:5500"]'
 
 
       - key: APP_NAME
