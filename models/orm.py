@@ -100,6 +100,7 @@ class User(TenantOwned, Base):
     role = Column(Enum(UserRole), nullable=False, default=UserRole.CASHIER)
     is_active = Column(Boolean, default=True, nullable=False)
     phone = Column(String(20), nullable=True)
+    sms_tokens = Column(Integer, default=0, server_default="0", nullable=False)
     business_name = Column(String(200), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
