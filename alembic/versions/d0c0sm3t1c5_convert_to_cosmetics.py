@@ -12,7 +12,10 @@ def upgrade():
     conn=op.get_bind()
     # Rename the old pharmacist role to manager. PostgreSQL uses a native enum;
     # SQLite stores the value as text.
-    if conn.dialect.name == 'postgresql':
+    if conn.dialect.name == 'postgresql' and any(
+        enum['name'] == 'userrole'
+        for enum in sa.inspect(conn).get_enums()
+    ):
         conn.execute(sa.text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'MANAGER'"))
     if _table(conn,'users') and 'role' in _cols(conn,'users'):
         conn.execute(sa.text("UPDATE users SET role='MANAGER' WHERE role IN ('PHARMACIST','pharmacist')"))
