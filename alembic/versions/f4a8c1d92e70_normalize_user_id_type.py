@@ -75,10 +75,12 @@ def upgrade() -> None:
         )
 
     inspector = sa.inspect(bind)
-    references: list[tuple[str, str, str, dict]] = []
+    references: list[tuple[str, str, str, dict, sa.types.TypeEngine]] = []
     for table in inspector.get_table_names():
-        if table == "users":
-            continue
+        columns = {
+            column["name"]: column["type"]
+            for column in inspector.get_columns(table)
+        }
         for foreign_key in inspector.get_foreign_keys(table):
             if (
                 foreign_key.get("referred_table") == "users"
@@ -89,19 +91,28 @@ def upgrade() -> None:
                     raise RuntimeError(
                         f"Cannot safely migrate composite user reference on {table}."
                     )
+                local_column = local_columns[0]
+                local_type = columns[local_column]
+                if not isinstance(local_type, (sa.String, sa.Integer)):
+                    raise RuntimeError(
+                        f"Cannot safely migrate {table}.{local_column}: "
+                        f"unsupported user ID type {local_type}."
+                    )
                 references.append(
                     (
                         table,
-                        local_columns[0],
+                        local_column,
                         foreign_key["name"],
                         foreign_key.get("options") or {},
+                        local_type,
                     )
                 )
 
-    for table, column, _constraint_name, _options in references:
-        _assert_integer_values(bind, table, column)
+    for table, column, _constraint_name, _options, column_type in references:
+        if isinstance(column_type, sa.String):
+            _assert_integer_values(bind, table, column)
 
-    for table, _column, constraint_name, _options in references:
+    for table, _column, constraint_name, _options, _column_type in references:
         op.drop_constraint(constraint_name, table, type_="foreignkey")
 
     op.alter_column(
@@ -111,16 +122,17 @@ def upgrade() -> None:
         type_=sa.Integer(),
         postgresql_using="id::integer",
     )
-    for table, column, _constraint_name, _options in references:
-        op.alter_column(
-            table,
-            column,
-            existing_type=sa.String(),
-            type_=sa.Integer(),
-            postgresql_using=f"{column}::integer",
-        )
+    for table, column, _constraint_name, _options, column_type in references:
+        if isinstance(column_type, sa.String):
+            op.alter_column(
+                table,
+                column,
+                existing_type=column_type,
+                type_=sa.Integer(),
+                postgresql_using=f"{column}::integer",
+            )
 
-    for table, column, constraint_name, options in references:
+    for table, column, constraint_name, options, _column_type in references:
         op.create_foreign_key(
             constraint_name,
             table,
