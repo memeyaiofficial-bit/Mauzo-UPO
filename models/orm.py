@@ -102,7 +102,12 @@ class User(TenantOwned, Base):
     phone = Column(String(20), nullable=True)
     sms_tokens = Column(Integer, default=0, server_default="0", nullable=False)
     business_name = Column(String(200), nullable=True)
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    created_at = Column(
+        DateTime,
+        default=func.now(),
+        server_default=func.now(),
+        nullable=False,
+    )
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     last_login = Column(DateTime, nullable=True)
     sales = relationship("Sale", foreign_keys="[Sale.cashier_id]", back_populates="cashier")
