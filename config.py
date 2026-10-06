@@ -14,6 +14,7 @@ RISK MITIGATED:
 """
 
 from functools import lru_cache
+import json
 from typing import Optional
 from pydantic import field_validator, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -73,10 +74,9 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
-    ALLOWED_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-    ]
+    ALLOWED_ORIGINS: str = (
+        '["http://localhost:3000","http://localhost:5173"]'
+    )
 
     TRUSTED_HOSTS: list[str] = [
         "localhost",
@@ -84,6 +84,41 @@ class Settings(BaseSettings):
     ]
 
     # ── Validators ────────────────────────────────────────────────────────
+    @field_validator("ALLOWED_ORIGINS", mode="before")
+    @classmethod
+    def validate_allowed_origins(cls, value: object) -> str:
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                raise ValueError("ALLOWED_ORIGINS must not be empty")
+
+            if value.startswith("["):
+                try:
+                    origins = json.loads(value)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        "ALLOWED_ORIGINS must be a JSON array or comma-separated origins"
+                    ) from exc
+            else:
+                origins = value.split(",")
+        else:
+            origins = value
+
+        if (
+            not isinstance(origins, list)
+            or not origins
+            or any(not isinstance(origin, str) or not origin.strip() for origin in origins)
+        ):
+            raise ValueError(
+                "ALLOWED_ORIGINS must contain one or more non-empty origin strings"
+            )
+
+        return json.dumps([origin.strip() for origin in origins])
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        return json.loads(self.ALLOWED_ORIGINS)
+
     @field_validator("SECRET_KEY")
     @classmethod
     def secret_key_must_be_long(cls, v: SecretStr) -> SecretStr:

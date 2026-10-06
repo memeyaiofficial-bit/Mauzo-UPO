@@ -175,7 +175,7 @@ app.include_router(payments_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS if not settings.DEBUG else ["*"],
+    allow_origins=settings.allowed_origins if not settings.DEBUG else ["*"],
     allow_credentials=True,            # Now safe because origins are explicit
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
