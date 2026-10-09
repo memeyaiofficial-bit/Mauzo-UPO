@@ -738,7 +738,7 @@ def dashboard(
         ) or 0
 
         return DashboardOut(
-            total_products=total_meds,
+            total_products=active_meds,
             active_products=active_meds,
             low_stock_count=low_stock_count,
             expiring_soon_count=expiring_count,
