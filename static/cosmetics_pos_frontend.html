@@ -59,6 +59,64 @@
 #pos-products .product-card h4 {
     color: #ffffff !important;
 }
+/* ===== High-visibility landing page: paste just before </style> ===== */
+:root{--accent:#b3245a;--accent2:#8a1a45;--accent-glow:rgba(179,36,90,.10);--text2:#334155;--text3:#566377;--border2:#7b8798;--green:#0f7a4f;--red:#b91c1c}
+body{font-size:17px}
+
+/* Sections: light pink tints instead of solid pink, so dark text is readable */
+#hero{background:linear-gradient(180deg,#fff0f5 0%,#fde4ec 100%)}
+.hero-glow{background:radial-gradient(ellipse 60% 50% at 50% 0%,rgba(179,36,90,.12) 0%,transparent 65%)}
+#testimonials{background:#fde7ee}
+#dawatrack{background:#fff0f5}
+#cta{background:#9d1c4f}
+.cta-sub{color:#fff}.cta-btn{color:#8a1a45}
+
+/* Coloured headline words and prices: solid colour instead of pink-on-pink clipped text */
+h1 .accent,.payment-amount-val{background:none;-webkit-background-clip:border-box;background-clip:border-box;-webkit-text-fill-color:currentColor;color:#a8204f}
+.hero-stat-val{color:#a8204f}
+
+/* Navigation and buttons */
+.nav-logo-text{font-size:20px}.nav-logo-sub{font-size:13px;color:var(--text2)}
+.nav-links a{font-size:16px;font-weight:600;color:#1e293b}.nav-links a:hover{color:var(--accent2)}
+.btn{font-size:16px;padding:12px 24px;min-height:46px}
+.btn-primary:hover,.btn-hero:hover,.form-submit:hover{background:#8a1a45}
+.btn-ghost,.btn-hero-outline{border-width:2px;color:#1e293b}
+.btn-ghost:hover,.btn-hero-outline:hover{color:var(--accent2)}
+.btn-hero,.btn-hero-outline{font-size:18px}
+
+/* Text sizes and colours */
+.hero-badge{font-size:13px;color:#8a1a45;background:#fbe0e9;border-color:#e6a0b3}
+.hero-sub{font-size:20px;color:var(--text2)}
+.hero-stat-label{font-size:14px;color:var(--text2)}
+.section-eyebrow{font-size:14px;color:#a8204f}
+.section-sub{font-size:19px}
+.feat-title{font-size:19px}.feat-desc{font-size:16px}
+.dt-list li{font-size:16px}.dt-bubble{font-size:15px}.dt-flow-label{font-size:13px}
+.testimonial-text{font-size:17px}.testimonial-name{font-size:16px}
+.testimonial-location{font-size:14px}.testimonial-stars{color:#b45309}
+
+/* Sign-up / login pop-up */
+.modal-title{font-size:22px}
+.modal-close{width:40px;height:40px;color:var(--text2)}
+.fg label{font-size:14px;color:var(--text)}
+.fg input,.fg select{font-size:17px;border:2px solid #7b8798;padding:13px 14px;background:#fff}
+.fg input:focus,.fg select:focus{border-color:var(--accent);box-shadow:0 0 0 4px rgba(179,36,90,.2)}
+.mtab{font-size:16px;color:var(--text2)}.mtab.active{color:var(--accent2);background:#fff}
+.form-submit{font-size:17px;padding:16px}
+.form-divider span{font-size:14px;color:var(--text2)}
+.pm-btn{font-size:15px;color:var(--text2);border-width:2px}.pm-btn.active{color:var(--accent2)}
+.mpesa-steps{font-size:15px}.payment-amount-label{font-size:16px}
+.error-msg{font-size:15px;color:#b91c1c}
+.modal [style*="font-size:12px"],.modal [style*="font-size: 12px"],.modal [style*="font-size:13px"],.modal [style*="font-size: 13px"],.modal [style*="font-size:14px"],.modal [style*="font-size: 14px"]{font-size:15px!important}
+
+/* Footer and messages */
+.footer-desc{font-size:16px}.footer-col-title{font-size:14px;color:var(--text2)}
+.footer-links a{font-size:16px}.footer-copy,.footer-tag{font-size:14px;color:var(--text2)}
+.toast{font-size:16px;max-width:380px}
+
+/* Visible keyboard focus */
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #1d4ed8;outline-offset:3px}
+@media(max-width:640px){body{font-size:16px}h1{font-size:36px}.hero-sub{font-size:18px}}
 </style>
 </head>
 <body>
