@@ -11,7 +11,7 @@ ACCESS CONTROL:
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
-
+from sqlalchemy.exc import IntegrityError
 from database import get_db
 from models.orm import AuditLog, User, UserRole
 from schemas.schemas import UserCreateIn, UserOut, UserUpdateIn
@@ -64,7 +64,14 @@ def create_user(
         phone=payload.phone,
     )
     db.add(user)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="That email is already registered to another account",
+        )
 
     db.add(AuditLog(
         user_id=current_admin.id,
